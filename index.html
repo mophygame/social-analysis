@@ -1,0 +1,745 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Plurk Public Analyzer</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #18202a;
+      --muted: #637083;
+      --line: #d9dee7;
+      --paper: #f7f8fa;
+      --panel: #ffffff;
+      --accent: #d84636;
+      --accent-2: #2e6f95;
+      --accent-3: #7b5e2e;
+      --good: #2f8a57;
+      --warn: #ad7625;
+      --bad: #bd453f;
+      --neutral: #6d7888;
+      --shadow: 0 12px 36px rgba(24, 32, 42, .08);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, "Noto Sans TC", "PingFang TC", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      color: var(--ink);
+      background: var(--paper);
+    }
+
+    button, input, select {
+      font: inherit;
+    }
+
+    .shell {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    header {
+      display: grid;
+      grid-template-columns: minmax(280px, 1fr) minmax(320px, 520px);
+      gap: 24px;
+      align-items: end;
+      padding: 18px 0 22px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .mark {
+      width: 44px;
+      height: 44px;
+      border-radius: 8px;
+      background: var(--accent);
+      color: white;
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      font-size: 24px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(28px, 4vw, 48px);
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      margin: 8px 0 0;
+      color: var(--muted);
+      max-width: 760px;
+      line-height: 1.7;
+    }
+
+    .search {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      box-shadow: var(--shadow);
+    }
+
+    .search-row {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .input-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 0 12px;
+      height: 44px;
+    }
+
+    .input-wrap span {
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    input {
+      border: 0;
+      outline: 0;
+      width: 100%;
+      min-width: 0;
+      color: var(--ink);
+      background: transparent;
+    }
+
+    button {
+      height: 44px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      padding: 0 14px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      white-space: nowrap;
+      transition: transform .15s ease, border-color .15s ease, background .15s ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+    }
+
+    .primary {
+      background: var(--ink);
+      color: white;
+    }
+
+    .secondary {
+      background: #fff;
+      color: var(--ink);
+      border-color: var(--line);
+    }
+
+    .fine-print {
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 22px;
+      padding-top: 22px;
+    }
+
+    aside {
+      position: sticky;
+      top: 18px;
+      align-self: start;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: var(--shadow);
+    }
+
+    .profile-head {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .avatar {
+      width: 54px;
+      height: 54px;
+      border-radius: 8px;
+      background: #eceff3;
+      display: grid;
+      place-items: center;
+      color: var(--accent);
+      font-weight: 800;
+      font-size: 26px;
+      overflow: hidden;
+    }
+
+    .avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .profile-name {
+      margin: 0;
+      font-weight: 800;
+      font-size: 18px;
+      overflow-wrap: anywhere;
+    }
+
+    .profile-id {
+      color: var(--muted);
+      font-size: 13px;
+      overflow-wrap: anywhere;
+    }
+
+    .side-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .side-item {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      border-top: 1px solid var(--line);
+      padding-top: 10px;
+    }
+
+    .side-item span:first-child {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .side-item strong {
+      text-align: right;
+      overflow-wrap: anywhere;
+    }
+
+    .content {
+      display: grid;
+      gap: 22px;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .metric, .panel, .insight {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .metric {
+      padding: 16px;
+      min-height: 112px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .metric strong {
+      font-size: 28px;
+      line-height: 1.1;
+      overflow-wrap: anywhere;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 22px;
+    }
+
+    .panel {
+      padding: 18px;
+      min-width: 0;
+    }
+
+    .panel h2 {
+      margin: 0 0 14px;
+      font-size: 17px;
+      letter-spacing: 0;
+    }
+
+    .heatmap {
+      display: grid;
+      grid-template-columns: repeat(24, minmax(14px, 1fr));
+      gap: 4px;
+      align-items: end;
+      min-height: 160px;
+    }
+
+    .bar-cell {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      min-width: 0;
+    }
+
+    .bar {
+      width: 100%;
+      min-height: 4px;
+      border-radius: 4px 4px 0 0;
+      background: var(--accent);
+    }
+
+    .bar-cell small {
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .week {
+      display: grid;
+      gap: 10px;
+    }
+
+    .rowbar {
+      display: grid;
+      grid-template-columns: 42px 1fr 44px;
+      gap: 10px;
+      align-items: center;
+      font-size: 13px;
+    }
+
+    .track {
+      height: 10px;
+      border-radius: 8px;
+      background: #edf0f4;
+      overflow: hidden;
+    }
+
+    .fill {
+      height: 100%;
+      border-radius: 8px;
+      background: var(--accent-2);
+    }
+
+    .timeline {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(22px, 1fr));
+      gap: 7px;
+      min-height: 126px;
+      align-items: end;
+    }
+
+    .timeline .bar {
+      background: var(--accent-3);
+    }
+
+    .ratio {
+      display: grid;
+      grid-template-columns: var(--original, 1fr) var(--replurk, 1fr);
+      overflow: hidden;
+      border-radius: 8px;
+      height: 34px;
+      border: 1px solid var(--line);
+    }
+
+    .ratio div {
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      min-width: 0;
+    }
+
+    .ratio div:first-child { background: var(--accent-2); }
+    .ratio div:last-child { background: var(--accent); }
+
+    .keyword-list, .topic-list, .plurk-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .keyword {
+      display: grid;
+      grid-template-columns: minmax(80px, 140px) 1fr 48px;
+      gap: 10px;
+      align-items: center;
+      font-size: 13px;
+    }
+
+    .keyword b {
+      overflow-wrap: anywhere;
+    }
+
+    .cloud {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      min-height: 170px;
+      align-content: center;
+    }
+
+    .cloud span {
+      color: var(--ink);
+      background: #eef1f5;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 5px 8px;
+      line-height: 1.1;
+    }
+
+    .sentiment {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+
+    .sent {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      display: grid;
+      gap: 6px;
+    }
+
+    .sent strong { font-size: 24px; }
+    .sent span { color: var(--muted); font-size: 13px; }
+
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .tag {
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      padding: 6px 9px;
+      color: var(--accent-2);
+      background: #f4f7f5;
+      font-size: 13px;
+    }
+
+    .plurk {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .plurk p {
+      margin: 0;
+      line-height: 1.5;
+    }
+
+    .plurk-meta {
+      display: flex;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 13px;
+      flex-wrap: wrap;
+    }
+
+    .prompt-grid {
+      display: grid;
+      grid-template-columns: 1.2fr .8fr;
+      gap: 22px;
+    }
+
+    .insight {
+      padding: 18px;
+    }
+
+    .insight h2 {
+      margin: 0 0 12px;
+      font-size: 18px;
+    }
+
+    .insight p {
+      margin: 0 0 12px;
+      color: var(--ink);
+      line-height: 1.7;
+    }
+
+    .prompt-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .prompt-box {
+      width: 100%;
+      min-height: 360px;
+      resize: vertical;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      color: var(--ink);
+      background: #fbfcfd;
+      line-height: 1.55;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: 13px;
+      outline: 0;
+    }
+
+    .prompt-box:focus {
+      border-color: var(--accent-2);
+    }
+
+    .copy-status {
+      min-height: 20px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .rank {
+      counter-reset: rank;
+      display: grid;
+      gap: 8px;
+    }
+
+    .rank div {
+      counter-increment: rank;
+      display: grid;
+      grid-template-columns: 28px 1fr;
+      align-items: start;
+      gap: 8px;
+    }
+
+    .rank div::before {
+      content: counter(rank);
+      width: 24px;
+      height: 24px;
+      border-radius: 8px;
+      background: #eef1f5;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .status {
+      margin-top: 12px;
+      min-height: 20px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .error {
+      color: var(--bad);
+    }
+
+    .loading {
+      opacity: .58;
+      pointer-events: none;
+    }
+
+    @media (max-width: 980px) {
+      header, main, .grid-2, .prompt-grid {
+        grid-template-columns: 1fr;
+      }
+
+      aside {
+        position: static;
+      }
+
+      .summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 620px) {
+      .shell {
+        padding: 16px;
+      }
+
+      .search-row {
+        grid-template-columns: 1fr;
+      }
+
+      button {
+        width: 100%;
+      }
+
+      .summary, .sentiment {
+        grid-template-columns: 1fr;
+      }
+
+      .heatmap {
+        grid-template-columns: repeat(12, minmax(14px, 1fr));
+      }
+
+      .keyword {
+        grid-template-columns: 1fr;
+      }
+
+      .rowbar {
+        grid-template-columns: 38px 1fr 34px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <section>
+        <div class="brand">
+          <div class="mark">P</div>
+          <div>
+            <h1>Plurk Public Analyzer</h1>
+            <p class="subtitle">輸入公開噗浪帳號，彙整 Profile、發文節奏、文字主題、互動表現，並產生可複製到 GPT 的分析 Prompt。敏感金鑰應放在 Cloudflare Worker，不放進前端。</p>
+          </div>
+        </div>
+      </section>
+
+      <form class="search" id="searchForm">
+        <div class="search-row">
+          <label class="input-wrap" title="Plurk 帳號 ID 或暱稱">
+            <span>@</span>
+            <input id="accountInput" autocomplete="off" placeholder="plurk_account" value="demo_user">
+          </label>
+          <button class="primary" type="submit" title="呼叫 /api/analyze 分析公開資料">分析</button>
+          <button class="secondary" id="demoButton" type="button" title="載入內建示範資料">示範資料</button>
+        </div>
+        <p class="fine-print">部署到 Cloudflare Pages 後，將 Worker 綁到同網域的 <code>/api/analyze</code> 即可使用真實資料。</p>
+        <div class="status" id="status">已載入示範資料，可先檢查分析版面。</div>
+      </form>
+    </header>
+
+    <main id="dashboard">
+      <aside>
+        <div class="profile-head">
+          <div class="avatar" id="avatar">P</div>
+          <div>
+            <p class="profile-name" id="displayName">Demo Plurker</p>
+            <div class="profile-id" id="nickName">@demo_user</div>
+          </div>
+        </div>
+        <div class="side-list" id="profileFacts"></div>
+      </aside>
+
+      <section class="content">
+        <section class="summary" id="metrics"></section>
+
+        <section class="grid-2">
+          <article class="panel">
+            <h2>發文時間熱力圖</h2>
+            <div class="heatmap" id="hourHeatmap"></div>
+          </article>
+          <article class="panel">
+            <h2>星期活躍度</h2>
+            <div class="week" id="weekdayChart"></div>
+          </article>
+        </section>
+
+        <section class="grid-2">
+          <article class="panel">
+            <h2>發文頻率變化</h2>
+            <div class="timeline" id="frequencyChart"></div>
+          </article>
+          <article class="panel">
+            <h2>原創噗 vs 轉噗</h2>
+            <div class="ratio" id="ratioChart"></div>
+            <div class="sentiment" id="replyStats" style="margin-top: 14px"></div>
+          </article>
+        </section>
+
+        <section class="grid-2">
+          <article class="panel">
+            <h2>常用詞雲</h2>
+            <div class="cloud" id="wordCloud"></div>
+          </article>
+          <article class="panel">
+            <h2>關鍵字排行</h2>
+            <div class="keyword-list" id="keywordRank"></div>
+          </article>
+        </section>
+
+        <section class="grid-2">
+          <article class="panel">
+            <h2>主題分類</h2>
+            <div class="topic-list" id="topicRank"></div>
+          </article>
+          <article class="panel">
+            <h2>情緒與 Hashtag</h2>
+            <div class="sentiment" id="sentimentChart"></div>
+            <div class="tag-row" id="hashtags" style="margin-top: 14px"></div>
+          </article>
+        </section>
+
+        <section class="grid-2">
+          <article class="panel">
+            <h2>互動最高的噗</h2>
+            <div class="plurk-list" id="topPlurks"></div>
+          </article>
+          <article class="panel">
+            <h2>最容易引起討論的主題</h2>
+            <div class="topic-list" id="discussionTopics"></div>
+          </article>
+        </section>
+
+        <section class="prompt-grid">
+          <article class="insight">
+            <h2>GPT 分析 Prompt</h2>
+            <div class="prompt-actions">
+              <button class="primary" id="copyPromptButton" type="button" title="複製 Prompt 到剪貼簿">複製 Prompt</button>
+              <span class="copy-status" id="copyStatus"></span>
+            </div>
+            <textarea class="prompt-box" id="analysisPrompt" spellcheck="false"></textarea>
+          </article>
+          <article class="insight">
+            <h2>Prompt 會要求 GPT 產出</h2>
+            <div class="rank" id="promptOutputs">
+              <div>興趣排行榜</div>
+              <div>人格特徵摘要，並明確標示為推測</div>
+              <div>最近關注話題</div>
+              <div>寫作風格</div>
+              <div>常討論的社群圈</div>
+            </div>
+            <p class="muted" style="margin-top: 14px">建議貼到 ChatGPT、GPTs 或其他 LLM。平台不會保存這段 Prompt，也不需要 OpenAI API key。</p>
+          </article>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <script src="assets/app.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+name = "plurk-public-analyzer-api"
+main = "worker.min.js"
+compatibility_date = "2026-07-08"
+
+[vars]
+PLURK_FETCH_LIMIT = "120"
+ANALYSIS_TTL_SECONDS = "604800"
+ANALYSIS_LOCK_TTL_SECONDS = "600"
+
+[[kv_namespaces]]
+binding = "PLURK_ANALYSIS_KV"
+id = "9a42b94296284d73815f4925463dc6b0"
+
+# Create the namespace with:
+# wrangler kv namespace create PLURK_ANALYSIS_KV
+#
+# Then paste the generated id here.
+# [[kv_namespaces]]
+# binding = "PLURK_ANALYSIS_KV"
+# id = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# Set secrets with:
+# wrangler secret put PLURK_APP_KEY
+# wrangler secret put PLURK_APP_SECRET
+# wrangler secret put PLURK_ACCESS_TOKEN
+# wrangler secret put PLURK_ACCESS_SECRET
