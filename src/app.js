@@ -315,7 +315,9 @@ $("searchForm").addEventListener("submit", async (event) => {
   $("status").textContent = `正在分析 @${account} 的公開資料...`;
   try {
     const response = await fetch(analyzeUrl(account));
-    if (!response.ok) throw new Error(`API 回應 ${response.status}`);
+    if (!response.ok) {
+      throw new Error(await describeApiError(response));
+    }
     const payload = await response.json();
     render(normalizePayload(payload, account));
     $("status").textContent = payload.source?.fromCache
@@ -330,6 +332,17 @@ $("searchForm").addEventListener("submit", async (event) => {
     $("dashboard").classList.remove("loading");
   }
 });
+
+async function describeApiError(response) {
+  const fallback = `API 回應 ${response.status}`;
+  try {
+    const payload = await response.json();
+    const detail = [payload.message, payload.hint].filter(Boolean).join("；");
+    return detail ? `${fallback}：${detail}` : fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 $("demoButton").addEventListener("click", () => {
   $("status").classList.remove("error");
