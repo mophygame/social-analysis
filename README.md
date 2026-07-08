@@ -38,6 +38,16 @@ worker.min.js
 
 注意：`.min.js` 是壓縮與輕度混淆，不是真正加密。前端程式仍可能被還原閱讀，所以 Plurk API key 等敏感資料仍然只能放在 Cloudflare Worker secrets。
 
+## API 位置
+
+目前 Pages 前端會呼叫 Cloudflare Worker：
+
+```text
+https://plurk-public-analyzer-api.mophygame.workers.dev/api/analyze
+```
+
+若未來改用自訂網域，可把 `src/app.js` 的 `API_BASE` 改成同網域或新的 Worker URL，然後重新執行 `npm run build`。
+
 ## 部署建議
 
 1. 把此資料夾上傳到 GitHub repository。

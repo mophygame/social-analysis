@@ -62,6 +62,7 @@ const demoData = {
 const $ = (id) => document.getElementById(id);
 const fmt = (value) => new Intl.NumberFormat("zh-TW").format(value ?? 0);
 const pct = (value) => `${Number(value || 0).toFixed(0)}%`;
+const API_BASE = "https://plurk-public-analyzer-api.mophygame.workers.dev";
 
 function render(data) {
   renderProfile(data.account);
@@ -288,6 +289,11 @@ ${JSON.stringify(payload, null, 2)}
 \`\`\``;
 }
 
+function analyzeUrl(account) {
+  const base = API_BASE.replace(/\/$/, "");
+  return `${base}/api/analyze?user=${encodeURIComponent(account)}`;
+}
+
 async function copyPrompt() {
   const prompt = $("analysisPrompt").value;
   try {
@@ -308,7 +314,7 @@ $("searchForm").addEventListener("submit", async (event) => {
   $("status").classList.remove("error");
   $("status").textContent = `正在分析 @${account} 的公開資料...`;
   try {
-    const response = await fetch(`/api/analyze?user=${encodeURIComponent(account)}`);
+    const response = await fetch(analyzeUrl(account));
     if (!response.ok) throw new Error(`API 回應 ${response.status}`);
     const payload = await response.json();
     render(normalizePayload(payload, account));
