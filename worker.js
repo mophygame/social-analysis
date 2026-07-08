@@ -55,7 +55,7 @@ export default {
       }
 
       const profile = await getPublicProfile(user, env);
-      const plurks = await getPublicPlurks(profile.userId || user, env);
+      const plurks = await getPublicPlurks(profile.userId, env);
       const analysis = buildAnalysis(profile, plurks);
       analysis.schemaVersion = "1.0";
       analysis.source = {
@@ -84,7 +84,7 @@ export default {
         error: "Analyze failed",
         message: error.message,
         hint: "Confirm Plurk API credentials and endpoint availability in Worker environment variables."
-      }, 502);
+      }, error.status || 502);
     }
   }
 };
@@ -109,14 +109,15 @@ function lockTtl(env) {
 }
 
 async function getPublicProfile(user, env) {
-  const params = /^\d+$/.test(user) ? { user_id: user } : { user_id: user };
+  const resolved = await resolvePublicUser(user);
+  const params = { user_id: resolved.userId };
   const data = await plurkApi("/Profile/getPublicProfile", params, env);
   const publicUser = data.user_info || data;
 
   return {
-    userId: publicUser.id || publicUser.uid || user,
-    displayName: publicUser.display_name || publicUser.full_name || publicUser.nick_name || user,
-    nickName: publicUser.nick_name || user,
+    userId: publicUser.id || publicUser.uid || resolved.userId,
+    displayName: publicUser.display_name || publicUser.full_name || publicUser.nick_name || resolved.nickName,
+    nickName: publicUser.nick_name || resolved.nickName,
     createdAt: publicUser.date_created || publicUser.created || null,
     followers: publicUser.fans_count || publicUser.followers_count || 0,
     friends: publicUser.friends_count || 0,
@@ -128,6 +129,46 @@ async function getPublicProfile(user, env) {
     bioKeywords: keywordsFromText(publicUser.about || publicUser.description || "").slice(0, 6),
     avatarUrl: publicUser.avatar_big || publicUser.avatar_medium || publicUser.avatar || ""
   };
+}
+
+async function resolvePublicUser(user) {
+  if (/^\d+$/.test(user)) {
+    return { userId: user, nickName: user };
+  }
+
+  const nickName = normalizeAccount(user);
+  const response = await fetch(`https://www.plurk.com/${encodeURIComponent(nickName)}`, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 PlurkPublicAnalyzer/1.0"
+    }
+  });
+  const html = await response.text();
+  const globalMatch = html.match(/var GLOBAL=(\{[^\n\r<]*)/);
+  const globalSource = globalMatch ? globalMatch[1] : "";
+  const idMatch = globalSource.match(/"page_user"\s*:\s*\{[^}]*"id"\s*:\s*(\d+)/);
+  const nickMatch = globalSource.match(/"page_user"\s*:\s*\{[^}]*"nick_name"\s*:\s*"([^"]+)"/);
+
+  if (idMatch) {
+    return {
+      userId: idMatch[1],
+      nickName: nickMatch ? decodeJsonString(nickMatch[1]) : nickName
+    };
+  }
+
+  const notFound = /User Not Found!|is not found!|"page_user"\s*:\s*null/i.test(html) || response.status === 404;
+  const error = new Error(notFound
+    ? `找不到公開 Plurk 帳號 @${nickName}，請確認輸入的是 Plurk 暱稱而不是顯示名稱。`
+    : `無法從公開 Plurk 頁解析 @${nickName} 的 user_id。`);
+  error.status = notFound ? 404 : 502;
+  throw error;
+}
+
+function decodeJsonString(value) {
+  try {
+    return JSON.parse(`"${String(value).replace(/"/g, '\\"')}"`);
+  } catch {
+    return value;
+  }
 }
 
 async function getPublicPlurks(userId, env) {
@@ -163,7 +204,8 @@ async function plurkApi(path, params, env) {
 
   const response = await fetch(url, { headers: { Authorization: auth } });
   if (!response.ok) {
-    throw new Error(`Plurk API ${path} responded ${response.status}`);
+    const body = await response.text();
+    throw new Error(`Plurk API ${path} responded ${response.status}${body ? `: ${stripHtml(body).slice(0, 220)}` : ""}`);
   }
   return response.json();
 }
