@@ -36,6 +36,13 @@ const demoData = {
     hashtags: ["#AI", "#動畫", "#台灣", "#創作", "#日常"]
   },
   interaction: {
+    recentPlurks: [
+      { content: "晚上把幾個 prompt 模板整理完，發現真正省時間的是命名而不是堆功能。", postedAt: "2026-07-08T11:20:00.000Z", replies: 18, favorites: 7, replurks: 1, topic: "AI / 科技" },
+      { content: "今天的咖啡有點太酸，但很適合拿來配修稿。", postedAt: "2026-07-08T05:42:00.000Z", replies: 9, favorites: 4, replurks: 0, topic: "生活日常" },
+      { content: "新番第三集的分鏡比前兩集更穩，情緒推進很漂亮。", postedAt: "2026-07-07T14:10:00.000Z", replies: 31, favorites: 12, replurks: 2, topic: "動漫 / 遊戲" },
+      { content: "公共討論如果不先定義詞，最後很容易只是在吵不同問題。", postedAt: "2026-07-06T13:05:00.000Z", replies: 44, favorites: 19, replurks: 5, topic: "社會政治" },
+      { content: "把舊筆記搬到新的資料夾結構，終於比較像能長期維護的東西。", postedAt: "2026-07-05T09:35:00.000Z", replies: 14, favorites: 6, replurks: 0, topic: "創作寫作" }
+    ],
     topPlurks: [
       { content: "整理了一份給非工程朋友看的 AI 工具比較，意外引起很多補充。", replies: 146, favorites: 58, replurks: 19, topic: "AI / 科技" },
       { content: "這季動畫的節奏真的比預期穩，角色弧線很漂亮。", replies: 112, favorites: 42, replurks: 8, topic: "動漫 / 遊戲" },
@@ -159,6 +166,18 @@ function renderText(text) {
 }
 
 function renderInteraction(interaction) {
+  $("recentPlurks").innerHTML = (interaction.recentPlurks || []).map(item => `
+    <div class="plurk">
+      <p>${escapeHtml(item.content)}</p>
+      <div class="plurk-meta">
+        <span>${formatDateTime(item.postedAt)}</span>
+        <span>${escapeHtml(item.topic || "未分類")}</span>
+        <span>回覆 ${fmt(item.replies)}</span>
+        <span>收藏 ${fmt(item.favorites ?? 0)}</span>
+        <span>轉噗 ${fmt(item.replurks ?? 0)}</span>
+      </div>
+    </div>
+  `).join("");
   $("topPlurks").innerHTML = interaction.topPlurks.map(item => `
     <div class="plurk">
       <p>${escapeHtml(item.content)}</p>
@@ -216,6 +235,18 @@ function escapeHtml(value) {
 
 function escapeAttr(value) {
   return escapeHtml(value).replace(/`/g, "&#096;");
+}
+
+function formatDateTime(value) {
+  if (!value) return "時間未提供";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("zh-TW", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(date);
 }
 
 function buildAnalysisPrompt(data) {

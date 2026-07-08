@@ -236,7 +236,21 @@ function buildAnalysis(account, plurks) {
     .sort((a, b) => b.replies - a.replies)
     .slice(0, 5)
     .map(p => ({
+      id: p.id,
+      postedAt: p.posted,
       content: stripHtml(p.content).slice(0, 140),
+      replies: p.replies,
+      favorites: p.favorites,
+      replurks: p.replurks,
+      topic: bestTopicForText(p.content)
+    }));
+  const recentPlurks = [...plurks]
+    .sort((a, b) => new Date(b.posted).getTime() - new Date(a.posted).getTime())
+    .slice(0, 5)
+    .map(p => ({
+      id: p.id,
+      postedAt: p.posted,
+      content: stripHtml(p.content).slice(0, 280),
       replies: p.replies,
       favorites: p.favorites,
       replurks: p.replurks,
@@ -268,6 +282,7 @@ function buildAnalysis(account, plurks) {
       hashtags: countTop(plurks.flatMap(p => p.hashtags), 10).map(([tag]) => tag)
     },
     interaction: {
+      recentPlurks,
       topPlurks,
       discussionTopics: discussionTopics(plurks)
     },
