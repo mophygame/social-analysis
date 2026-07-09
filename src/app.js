@@ -69,6 +69,9 @@ const $ = (id) => document.getElementById(id);
 const fmt = (value) => new Intl.NumberFormat("zh-TW").format(value ?? 0);
 const pct = (value) => `${Number(value || 0).toFixed(0)}%`;
 const API_BASE = "https://plurk-public-analyzer-api.mophygame.workers.dev";
+const isProvided = (value) => value !== null && value !== undefined && value !== "";
+const fieldValue = (value) => isProvided(value) ? value : "未提供";
+const numberField = (value) => isProvided(value) ? fmt(value) : "未提供";
 
 function render(data) {
   renderProfile(data.account);
@@ -87,14 +90,14 @@ function renderProfile(account) {
     : (account.displayName || account.nickName || "P").slice(0, 1).toUpperCase();
 
   const facts = [
-    ["建立時間", account.createdAt || "API 未提供"],
-    ["粉絲 / 好友", `${fmt(account.followers)} / ${fmt(account.friends)}`],
-    ["最後上線", formatDateTime(account.lastActiveAt) || "未公開"],
-    ["Karma", account.karma ?? "未公開"],
-    ["所在地", account.location || "未公開"],
-    ["性別", account.gender || "未公開"],
-    ["語言", account.language || "未判定"],
-    ["簡介關鍵字", (account.bioKeywords || []).join("、") || "無"]
+    ["建立時間", fieldValue(account.createdAt)],
+    ["粉絲 / 好友", `${numberField(account.followers)} / ${numberField(account.friends)}`],
+    ["最後上線", isProvided(account.lastActiveAt) ? formatDateTime(account.lastActiveAt) : "未提供"],
+    ["Karma", fieldValue(account.karma)],
+    ["所在地", fieldValue(account.location)],
+    ["性別", fieldValue(account.gender)],
+    ["語言", fieldValue(account.language)],
+    ["簡介關鍵字", (account.bioKeywords || []).join("、") || "未提供"]
   ];
   $("profileFacts").innerHTML = facts.map(([label, value]) => `
     <div class="side-item"><span>${label}</span><strong>${escapeHtml(String(value))}</strong></div>
@@ -235,8 +238,123 @@ function varColor(name) {
 }
 
 function normalizePayload(payload, account) {
-  const merged = structuredClone(demoData);
+  const merged = emptyAnalysis(account);
   return deepMerge(merged, payload || { account: { nickName: account } });
+}
+
+function emptyAnalysis(account = "") {
+  return {
+    account: {
+      displayName: account,
+      nickName: account,
+      createdAt: null,
+      followers: null,
+      friends: null,
+      lastActiveAt: null,
+      karma: null,
+      totalPlurks: 0,
+      averagePerDay: null,
+      location: "",
+      gender: null,
+      language: "",
+      bioKeywords: [],
+      avatarUrl: ""
+    },
+    posting: {
+      hourly: Array.from({ length: 24 }, () => 0),
+      weekdays: { "一": 0, "二": 0, "三": 0, "四": 0, "五": 0, "六": 0, "日": 0 },
+      monthly: Array.from({ length: 12 }, () => 0),
+      originalRate: 0,
+      replurkRate: 0,
+      replyRate: 0,
+      averageReplies: 0,
+      averageFavorites: 0,
+      averageReplurks: 0
+    },
+    text: {
+      wordCloud: [],
+      keywords: [],
+      topics: [],
+      sentiment: { positive: 0, neutral: 0, negative: 0 },
+      hashtags: []
+    },
+    interaction: {
+      recentPlurks: [],
+      topPlurks: [],
+      discussionTopics: []
+    },
+    ai: {
+      summary: "",
+      personality: "",
+      interests: [],
+      recentFocus: [],
+      communities: []
+    }
+  };
+}
+
+function renderNotFound(account, message) {
+  $("displayName").textContent = "找不到用戶";
+  $("nickName").textContent = account ? `@${account.replace(/^@/, "")}` : "@unknown";
+  $("avatar").textContent = "?";
+  renderProfile({
+    displayName: "找不到用戶",
+    nickName: account.replace(/^@/, ""),
+    createdAt: null,
+    followers: null,
+    friends: null,
+    lastActiveAt: null,
+    karma: null,
+    location: null,
+    gender: null,
+    language: null,
+    bioKeywords: [],
+    avatarUrl: ""
+  });
+  renderEmptyDashboard("找不到用戶", message || "Plurk 沒有回傳此公開帳號。");
+}
+
+function renderEmptyDashboard(title, message) {
+  $("metrics").innerHTML = [
+    ["發文總數", "0"],
+    ["平均每天發文", "0 則"],
+    ["平均回覆數", "0 則"],
+    ["回覆比例", "0%"]
+  ].map(([label, value]) => `
+    <article class="metric"><span>${label}</span><strong>${value}</strong></article>
+  `).join("");
+  $("hourHeatmap").innerHTML = emptyMessage(`${title}，沒有可分析的發文時間。`);
+  $("weekdayChart").innerHTML = emptyMessage(`${title}，沒有星期活躍資料。`);
+  $("frequencyChart").innerHTML = emptyMessage(`${title}，沒有發文頻率資料。`);
+  $("ratioChart").style.setProperty("--original", 1);
+  $("ratioChart").style.setProperty("--replurk", 1);
+  $("ratioChart").innerHTML = "<div>原創 0%</div><div>轉噗 0%</div>";
+  $("replyStats").innerHTML = [
+    ["0", "平均收藏"],
+    ["0", "平均轉噗"],
+    ["0%", "回覆比例"]
+  ].map(([value, label]) => `<div class="sent"><strong>${value}</strong><span>${label}</span></div>`).join("");
+  $("wordCloud").innerHTML = emptyMessage(`${title}，沒有文字資料。`);
+  $("keywordRank").innerHTML = emptyMessage(`${title}，沒有關鍵字資料。`);
+  $("topicRank").innerHTML = emptyMessage(`${title}，沒有主題資料。`);
+  $("sentimentChart").innerHTML = [
+    ["正向", 0, "var(--good)"],
+    ["中性", 0, "var(--neutral)"],
+    ["負向", 0, "var(--bad)"]
+  ].map(([label, value, color]) => `
+    <div class="sent" style="border-top: 4px solid ${color}">
+      <strong>${pct(value)}</strong><span>${label}</span>
+    </div>
+  `).join("");
+  $("hashtags").innerHTML = emptyMessage(`${title}，沒有 Hashtag 資料。`);
+  $("recentPlurks").innerHTML = emptyMessage(`${title}，沒有最近文章。`);
+  $("topPlurks").innerHTML = emptyMessage(`${title}，沒有互動文章。`);
+  $("discussionTopics").innerHTML = emptyMessage(`${title}，沒有討論主題。`);
+  $("analysisPrompt").value = message;
+}
+
+function emptyMessage(message) {
+  return `<p class="muted empty-state">${escapeHtml(message)}</p>`;
 }
 
 function deepMerge(target, source) {
@@ -251,7 +369,7 @@ function deepMerge(target, source) {
 }
 
 function escapeHtml(value) {
-  return value.replace(/[&<>"']/g, char => ({
+  return String(value).replace(/[&<>"']/g, char => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
   }[char]));
 }
@@ -338,7 +456,14 @@ $("searchForm").addEventListener("submit", async (event) => {
   try {
     const response = await fetch(analyzeUrl(account));
     if (!response.ok) {
-      throw new Error(await describeApiError(response));
+      const apiError = await describeApiError(response);
+      if (response.status === 404) {
+        renderNotFound(account, apiError.message);
+        $("status").classList.add("error");
+        $("status").textContent = `找不到用戶 @${account}。`;
+        return;
+      }
+      throw new Error(apiError.message);
     }
     const payload = await response.json();
     render(normalizePayload(payload, account));
@@ -346,21 +471,26 @@ $("searchForm").addEventListener("submit", async (event) => {
       ? `已從快取載入 @${account} 的最新分析，沒有重新爬取。`
       : `已完成 @${account} 的公開資料分析，並覆蓋保存最新結果。`;
   } catch (error) {
-    const fallback = normalizePayload({ account: { nickName: account, displayName: account } }, account);
-    render(fallback);
+    render(normalizePayload({ account: { nickName: account, displayName: account } }, account));
+    renderEmptyDashboard("API 無法回應", error.message);
     $("status").classList.add("error");
-    $("status").textContent = `目前尚未接上後端或 API 無法回應，已用示範結構顯示 @${account}。錯誤：${error.message}`;
+    $("status").textContent = `API 無法回應：${error.message}`;
   } finally {
     $("dashboard").classList.remove("loading");
   }
 });
 
 async function describeApiError(response) {
-  const fallback = `API 回應 ${response.status}`;
+  const fallback = { status: response.status, message: `API 回應 ${response.status}` };
   try {
     const payload = await response.json();
-    const detail = [payload.message, payload.hint].filter(Boolean).join("；");
-    return detail ? `${fallback}：${detail}` : fallback;
+    const detail = response.status === 404
+      ? payload.message
+      : [payload.message, payload.hint].filter(Boolean).join("；");
+    return {
+      status: response.status,
+      message: detail ? `API 回應 ${response.status}：${detail}` : fallback.message
+    };
   } catch {
     return fallback;
   }

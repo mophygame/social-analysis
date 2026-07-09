@@ -488,7 +488,7 @@ function firstNumber(...values) {
       return Number(value);
     }
   }
-  return 0;
+  return null;
 }
 
 function normalizeGender(value) {
