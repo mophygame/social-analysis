@@ -1,5 +1,5 @@
 const PLURK_API_BASE = "https://www.plurk.com/APP";
-const CACHE_VERSION = "v1";
+const CACHE_VERSION = "v2";
 const DEFAULT_ANALYSIS_TTL_SECONDS = 7 * 24 * 60 * 60;
 const DEFAULT_LOCK_TTL_SECONDS = 10 * 60;
 
@@ -55,7 +55,7 @@ export default {
       }
 
       const profile = await getPublicProfile(user, env);
-      const plurks = await getPublicPlurks(profile.userId, env);
+      const plurks = await attachPlurkResponses(await getPublicPlurks(profile.userId, env), env);
       const analysis = buildAnalysis(profile, plurks);
       analysis.schemaVersion = "1.0";
       analysis.source = {
@@ -119,8 +119,9 @@ async function getPublicProfile(user, env) {
     displayName: publicUser.display_name || publicUser.full_name || publicUser.nick_name || resolved.nickName,
     nickName: publicUser.nick_name || resolved.nickName,
     createdAt: publicUser.date_created || publicUser.created || null,
-    followers: publicUser.fans_count || publicUser.followers_count || 0,
-    friends: publicUser.friends_count || 0,
+    followers: firstNumber(publicUser.num_of_fans, publicUser.fans_count, publicUser.followers_count, resolved.followers),
+    friends: firstNumber(publicUser.num_of_friends, publicUser.friends_count, resolved.friends),
+    lastActiveAt: publicUser.last_visit || publicUser.last_login || publicUser.last_active || resolved.lastActiveAt || null,
     karma: publicUser.karma ?? null,
     totalPlurks: publicUser.plurks_count || publicUser.plurks || 0,
     location: publicUser.location || "",
@@ -147,11 +148,17 @@ async function resolvePublicUser(user) {
   const globalSource = globalMatch ? globalMatch[1] : "";
   const idMatch = globalSource.match(/"page_user"\s*:\s*\{[^}]*"id"\s*:\s*(\d+)/);
   const nickMatch = globalSource.match(/"page_user"\s*:\s*\{[^}]*"nick_name"\s*:\s*"([^"]+)"/);
+  const fansMatch = globalSource.match(/"num_of_fans"\s*:\s*(\d+)/);
+  const friendsMatch = globalSource.match(/"num_of_friends"\s*:\s*(\d+)/);
+  const lastVisitMatch = html.match(/last_visit\s*=\s*new Date\('([^']+)'/);
 
   if (idMatch) {
     return {
       userId: idMatch[1],
-      nickName: nickMatch ? decodeJsonString(nickMatch[1]) : nickName
+      nickName: nickMatch ? decodeJsonString(nickMatch[1]) : nickName,
+      followers: fansMatch ? Number(fansMatch[1]) : null,
+      friends: friendsMatch ? Number(friendsMatch[1]) : null,
+      lastActiveAt: lastVisitMatch ? normalizePlurkDate(lastVisitMatch[1]) : null
     };
   }
 
@@ -189,6 +196,33 @@ async function getPublicPlurks(userId, env) {
   }
 
   return all.slice(0, limit).map(normalizePlurk);
+}
+
+async function attachPlurkResponses(plurks, env) {
+  const selected = new Map();
+  for (const plurk of [...plurks].sort((a, b) => new Date(b.posted).getTime() - new Date(a.posted).getTime()).slice(0, 5)) {
+    if (plurk.id) selected.set(plurk.id, plurk);
+  }
+  for (const plurk of [...plurks].sort((a, b) => b.replies - a.replies).slice(0, 5)) {
+    if (plurk.id) selected.set(plurk.id, plurk);
+  }
+
+  await Promise.all([...selected.values()].map(async (plurk) => {
+    plurk.responseItems = await getPlurkResponses(plurk.id, env);
+  }));
+  return plurks;
+}
+
+async function getPlurkResponses(plurkId, env) {
+  try {
+    const data = await plurkApi("/Responses/get", { plurk_id: plurkId }, env);
+    const users = data.friends || data.users || {};
+    const responses = data.responses || [];
+    if (!Array.isArray(responses)) return [];
+    return responses.slice(0, 30).map(response => normalizeResponse(response, users));
+  } catch {
+    return [];
+  }
 }
 
 async function plurkApi(path, params, env) {
@@ -284,7 +318,8 @@ function buildAnalysis(account, plurks) {
       replies: p.replies,
       favorites: p.favorites,
       replurks: p.replurks,
-      topic: bestTopicForText(p.content)
+      topic: bestTopicForText(p.content),
+      responseItems: p.responseItems || []
     }));
   const recentPlurks = [...plurks]
     .sort((a, b) => new Date(b.posted).getTime() - new Date(a.posted).getTime())
@@ -296,7 +331,8 @@ function buildAnalysis(account, plurks) {
       replies: p.replies,
       favorites: p.favorites,
       replurks: p.replurks,
-      topic: bestTopicForText(p.content)
+      topic: bestTopicForText(p.content),
+      responseItems: p.responseItems || []
     }));
 
   return {
@@ -342,7 +378,21 @@ function normalizePlurk(raw) {
     favorites: raw.favorite_count || raw.favorites_count || raw.favorite_count_public || 0,
     replurks: raw.replurkers_count || raw.replurk_count || 0,
     isReplurk: Boolean(raw.replurked || raw.replurker_id || raw.replurk_id),
-    hashtags: [...content.matchAll(/#[\p{L}\p{N}_-]+/gu)].map(match => match[0])
+    hashtags: [...content.matchAll(/#[\p{L}\p{N}_-]+/gu)].map(match => match[0]),
+    responseItems: []
+  };
+}
+
+function normalizeResponse(raw, users) {
+  const user = users?.[raw.user_id] || users?.[String(raw.user_id)] || {};
+  return {
+    id: raw.id,
+    userId: raw.user_id || null,
+    displayName: user.display_name || user.full_name || user.nick_name || (raw.user_id ? `user ${raw.user_id}` : "公開使用者"),
+    nickName: user.nick_name || "",
+    postedAt: raw.posted || raw.date || null,
+    content: stripHtml(raw.content_raw || raw.content || "").slice(0, 260),
+    qualifier: raw.qualifier || ""
   };
 }
 
@@ -422,6 +472,23 @@ function countTop(items, limit) {
 
 function stripHtml(value) {
   return String(value || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function normalizePlurkDate(value) {
+  if (!value) return null;
+  if (/^\d{4}-\d{2}-\d{2}\s/.test(value)) {
+    return `${value.replace(" ", "T")}+08:00`;
+  }
+  return value;
+}
+
+function firstNumber(...values) {
+  for (const value of values) {
+    if (value !== null && value !== undefined && value !== "" && !Number.isNaN(Number(value))) {
+      return Number(value);
+    }
+  }
+  return 0;
 }
 
 function normalizeGender(value) {

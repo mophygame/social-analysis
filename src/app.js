@@ -5,6 +5,7 @@ const demoData = {
     createdAt: "2021-03-18",
     followers: 2380,
     friends: 512,
+    lastActiveAt: "2026-07-08T12:35:00+08:00",
     karma: 92.84,
     totalPlurks: 4860,
     averagePerDay: 2.47,
@@ -37,8 +38,13 @@ const demoData = {
   },
   interaction: {
     recentPlurks: [
-      { content: "晚上把幾個 prompt 模板整理完，發現真正省時間的是命名而不是堆功能。", postedAt: "2026-07-08T11:20:00.000Z", replies: 18, favorites: 7, replurks: 1, topic: "AI / 科技" },
-      { content: "今天的咖啡有點太酸，但很適合拿來配修稿。", postedAt: "2026-07-08T05:42:00.000Z", replies: 9, favorites: 4, replurks: 0, topic: "生活日常" },
+      { content: "晚上把幾個 prompt 模板整理完，發現真正省時間的是命名而不是堆功能。", postedAt: "2026-07-08T11:20:00.000Z", replies: 18, favorites: 7, replurks: 1, topic: "AI / 科技", responseItems: [
+        { displayName: "路過的使用者", nickName: "reader_a", postedAt: "2026-07-08T11:28:00.000Z", content: "命名真的會影響後面維護，我懂。" },
+        { displayName: "整理控", nickName: "organizer", postedAt: "2026-07-08T11:35:00.000Z", content: "模板如果分情境命名會更好找。" }
+      ] },
+      { content: "今天的咖啡有點太酸，但很適合拿來配修稿。", postedAt: "2026-07-08T05:42:00.000Z", replies: 9, favorites: 4, replurks: 0, topic: "生活日常", responseItems: [
+        { displayName: "咖啡友", nickName: "coffee_friend", postedAt: "2026-07-08T05:55:00.000Z", content: "酸香配文字工作很可以。" }
+      ] },
       { content: "新番第三集的分鏡比前兩集更穩，情緒推進很漂亮。", postedAt: "2026-07-07T14:10:00.000Z", replies: 31, favorites: 12, replurks: 2, topic: "動漫 / 遊戲" },
       { content: "公共討論如果不先定義詞，最後很容易只是在吵不同問題。", postedAt: "2026-07-06T13:05:00.000Z", replies: 44, favorites: 19, replurks: 5, topic: "社會政治" },
       { content: "把舊筆記搬到新的資料夾結構，終於比較像能長期維護的東西。", postedAt: "2026-07-05T09:35:00.000Z", replies: 14, favorites: 6, replurks: 0, topic: "創作寫作" }
@@ -83,6 +89,7 @@ function renderProfile(account) {
   const facts = [
     ["建立時間", account.createdAt || "API 未提供"],
     ["粉絲 / 好友", `${fmt(account.followers)} / ${fmt(account.friends)}`],
+    ["最後上線", formatDateTime(account.lastActiveAt) || "未公開"],
     ["Karma", account.karma ?? "未公開"],
     ["所在地", account.location || "未公開"],
     ["性別", account.gender || "未公開"],
@@ -167,30 +174,45 @@ function renderText(text) {
 }
 
 function renderInteraction(interaction) {
-  $("recentPlurks").innerHTML = (interaction.recentPlurks || []).map(item => `
-    <div class="plurk">
-      <p>${escapeHtml(item.content)}</p>
-      <div class="plurk-meta">
-        <span>${formatDateTime(item.postedAt)}</span>
-        <span>${escapeHtml(item.topic || "未分類")}</span>
-        <span>回覆 ${fmt(item.replies)}</span>
-        <span>收藏 ${fmt(item.favorites ?? 0)}</span>
-        <span>轉噗 ${fmt(item.replurks ?? 0)}</span>
-      </div>
-    </div>
-  `).join("");
-  $("topPlurks").innerHTML = interaction.topPlurks.map(item => `
-    <div class="plurk">
-      <p>${escapeHtml(item.content)}</p>
-      <div class="plurk-meta">
-        <span>${escapeHtml(item.topic)}</span>
-        <span>回覆 ${fmt(item.replies)}</span>
-        <span>收藏 ${fmt(item.favorites ?? 0)}</span>
-        <span>轉噗 ${fmt(item.replurks ?? 0)}</span>
-      </div>
-    </div>
-  `).join("");
+  $("recentPlurks").innerHTML = (interaction.recentPlurks || []).map(item => renderPlurkCard(item, true)).join("");
+  $("topPlurks").innerHTML = (interaction.topPlurks || []).map(item => renderPlurkCard(item, false)).join("");
   renderRankBars("discussionTopics", interaction.discussionTopics, varColor("--accent-3"));
+}
+
+function renderPlurkCard(item, showPostedAt) {
+  const responses = item.responseItems || [];
+  const meta = [
+    showPostedAt ? formatDateTime(item.postedAt) : "",
+    item.topic || "未分類",
+    `回覆 ${fmt(item.replies)}`,
+    `收藏 ${fmt(item.favorites ?? 0)}`,
+    `轉噗 ${fmt(item.replurks ?? 0)}`
+  ].filter(Boolean);
+
+  return `
+    <details class="plurk">
+      <summary>
+        <span class="plurk-content">${escapeHtml(item.content || "內容未提供")}</span>
+        <span class="plurk-meta">${meta.map(value => `<span>${escapeHtml(String(value))}</span>`).join("")}</span>
+      </summary>
+      <div class="responses">
+        ${responses.length ? responses.map(renderResponse).join("") : `<p class="muted">沒有抓到公開回應內容，或 Plurk API 未提供。</p>`}
+      </div>
+    </details>
+  `;
+}
+
+function renderResponse(item) {
+  const name = item.nickName ? `${item.displayName || item.nickName} @${item.nickName}` : (item.displayName || "公開使用者");
+  return `
+    <article class="response">
+      <div class="response-head">
+        <strong>${escapeHtml(name)}</strong>
+        <span>${formatDateTime(item.postedAt)}</span>
+      </div>
+      <p>${escapeHtml(item.content || "內容未提供")}</p>
+    </article>
+  `;
 }
 
 function renderPrompt(data) {

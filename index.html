@@ -456,6 +456,36 @@
       gap: 8px;
     }
 
+    details.plurk {
+      cursor: pointer;
+    }
+
+    .plurk summary {
+      display: grid;
+      gap: 8px;
+      list-style: none;
+    }
+
+    .plurk summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .plurk summary::after {
+      content: "點擊查看回應";
+      color: var(--accent-2);
+      font-size: 13px;
+      font-weight: 700;
+      justify-self: start;
+    }
+
+    .plurk[open] summary::after {
+      content: "收合回應";
+    }
+
+    .plurk-content {
+      line-height: 1.5;
+    }
+
     .plurk p {
       margin: 0;
       line-height: 1.5;
@@ -467,6 +497,36 @@
       color: var(--muted);
       font-size: 13px;
       flex-wrap: wrap;
+    }
+
+    .responses {
+      display: grid;
+      gap: 8px;
+      border-top: 1px solid var(--line);
+      padding-top: 10px;
+      cursor: default;
+    }
+
+    .response {
+      display: grid;
+      gap: 6px;
+      border-left: 3px solid var(--accent-2);
+      background: #f7faf9;
+      padding: 10px 12px;
+      border-radius: 6px;
+    }
+
+    .response-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 12px;
+      flex-wrap: wrap;
+    }
+
+    .response-head strong {
+      color: var(--ink);
     }
 
     .prompt-grid {
@@ -727,7 +787,7 @@
 
         <section class="prompt-grid">
           <article class="insight">
-            <h2>GPT 分析 Prompt</h2>
+            <h2>GPT分析 Prompt</h2>
             <div class="prompt-actions">
               <button class="primary" id="copyPromptButton" type="button" title="複製 Prompt 到剪貼簿">複製 Prompt</button>
               <span class="copy-status" id="copyStatus"></span>
@@ -750,6 +810,6 @@
     </main>
   </div>
 
-  <script src="assets/app.min.js?v=error-detail-1"></script>
+  <script src="assets/app.min.js?v=responses-1"></script>
 </body>
 </html>
